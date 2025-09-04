@@ -25,6 +25,42 @@ const (
         HeaderTimeout  = 10 * time.Second
 )
 
+// Color codes for terminal output
+const (
+        ColorBlack  = "\033[30m"
+        ColorRed    = "\033[31m"
+        ColorGreen  = "\033[32m"
+        ColorYellow = "\033[33m"
+        ColorBlue   = "\033[34m"
+        ColorCyan   = "\033[36m"
+        ColorBold   = "\033[1m"
+        ColorReset  = "\033[0m"
+)
+
+const wolfBanner = ColorBlack + ColorBold + `
+              /^\/^\
+            _|__|  O|
+   \/     /~     _/ \
+    ____|__________/  \
+           _______      \
+                   \     \                 \   
+                   |     |                  \
+                  /      /                    \
+                 /     /                       \
+               /      /                         \ \
+              /     /                            \  \
+            /     /             _----_            \   \
+           /     /           _-~      ~-_          |   |
+          (      (        _-~    _--_    ~-_      _/   |
+           \      ~-____-~    _-~    ~-_    ~-_-~    /
+             ~-_           _-~          ~-_       _-~
+                ~--______-~                ~-___-~
+` + ColorReset + `
+   ` + ColorCyan + `ffufai v` + Version + ColorReset + `  |  ` + ColorGreen + `AI-Powered Web Fuzzer` + ColorReset + `
+   coded by ` + ColorBold + `Youssef Hamdi` + ColorReset + `
+   --------------------------------------------
+`
+
 // Perplexity API structures
 type PerplexityRequest struct {
         Model       string    `json:"model"`
@@ -72,6 +108,11 @@ type Config struct {
         Model         string
         Verbose       bool
         DryRun        bool
+}
+
+// Display wolf banner with colors
+func displayBanner() {
+        fmt.Print(wolfBanner)
 }
 
 // Get API key from environment
@@ -257,31 +298,19 @@ Response:`, config.MaxExtensions, urlStr, string(headersJSON))
 
 // Parse command line arguments with better error handling
 // Parse command line arguments with better error handling
-// Parse command line arguments with better error handling
 func parseArgs() (*Config, error) {
         config := &Config{
                 Model: DefaultModel,
         }
 
-        // Create a custom flag set that continues on error
+        // Create a custom flag set that exits on help
         fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-        fs.Usage = func() {
-                fmt.Fprintf(os.Stderr, "ffufai v%s - AI-powered ffuf wrapper with Perplexity API\n\n", Version)
-                fmt.Fprintf(os.Stderr, "Usage: %s [options] -u URL [ffuf options]\n\n", os.Args[0])
-                fmt.Fprintf(os.Stderr, "Options:\n")
-                fs.PrintDefaults()
-                fmt.Fprintf(os.Stderr, "\nExamples:\n")
-                fmt.Fprintf(os.Stderr, "  %s -u https://example.com/FUZZ -w /path/to/wordlist.txt\n", os.Args[0])
-                fmt.Fprintf(os.Stderr, "  %s --verbose --max-extensions 6 -u https://example.com/admin/FUZZ -w wordlist.txt -fc 404\n", os.Args[0])
-                fmt.Fprintf(os.Stderr, "  %s --dry-run -u https://example.com/api/FUZZ -w wordlist.txt\n", os.Args[0])
-                fmt.Fprintf(os.Stderr, "\nEnvironment Variables:\n")
-                fmt.Fprintf(os.Stderr, "  PERPLEXITY_API_KEY    Perplexity AI API key (required)\n\n")
-                fmt.Fprintf(os.Stderr, "Note: All ffuf options can be passed after the URL.\n")
-        }
 
-        // Define only OUR flags
+        // Define flags including help flags
         var urlFlag string
         var showVersion bool
+        var showHelp bool
+
         fs.StringVar(&config.FfufPath, "ffuf-path", "ffuf", "Path to ffuf executable")
         fs.IntVar(&config.MaxExtensions, "max-extensions", 4, "Maximum number of extensions to suggest (1-10)")
         fs.StringVar(&config.Model, "model", DefaultModel, "Perplexity model to use")
@@ -289,17 +318,70 @@ func parseArgs() (*Config, error) {
         fs.BoolVar(&config.DryRun, "dry-run", false, "Show what would be executed without running ffuf")
         fs.StringVar(&urlFlag, "u", "", "Target URL with FUZZ keyword (required)")
         fs.BoolVar(&showVersion, "version", false, "Show version information")
+        fs.BoolVar(&showHelp, "help", false, "Show usage information")
+        fs.BoolVar(&showHelp, "h", false, "Show usage information")
 
-        // Parse only our known flags, ignore unknown ones
+        // Custom usage function with banner
+        fs.Usage = func() {
+                displayBanner()
+                fmt.Fprintf(os.Stderr, "Usage: %s [options] -u URL [ffuf options]\n\n", os.Args[0])
+                fmt.Fprintf(os.Stderr, "Options:\n")
+                fs.PrintDefaults()
+                fmt.Fprintf(os.Stderr, "\nExamples:\n")
+                fmt.Fprintf(os.Stderr, "  %s -u https://example.com/FUZZ -w /path/to/wordlist.txt\n", os.Args[0])
+                fmt.Fprintf(os.Stderr, "  %s --verbose --max-extensions 6 -u https://example.com/admin/FUZZ -w wordlist.txt -fc 404\n", os.Args[0])
+                fmt.Fprintf(os.Stderr, "  %s --dry-run -u https://example.com/api/FUZZ -w wordlist.txt -fc 301\n", os.Args[0])
+                fmt.Fprintf(os.Stderr, "\nCommon ffuf Options:\n")
+                fmt.Fprintf(os.Stderr, "  -w FILE         Wordlist file path\n")
+                fmt.Fprintf(os.Stderr, "  -fc CODE        Filter HTTP status codes (e.g., -fc 404,301)\n")
+                fmt.Fprintf(os.Stderr, "  -mc CODE        Match HTTP status codes only (e.g., -mc 200,403)\n")
+                fmt.Fprintf(os.Stderr, "  -fs SIZE        Filter response size (e.g., -fs 134)\n")
+                fmt.Fprintf(os.Stderr, "  -t NUM          Number of concurrent threads (default: 40)\n")
+                fmt.Fprintf(os.Stderr, "  -X METHOD       HTTP method (GET, POST, etc.)\n")
+                fmt.Fprintf(os.Stderr, "  -o FILE         Output file (json, csv, html)\n")
+                fmt.Fprintf(os.Stderr, "\nEnvironment Variables:\n")
+                fmt.Fprintf(os.Stderr, "  PERPLEXITY_API_KEY    Perplexity AI API key (required)\n")
+                fmt.Fprintf(os.Stderr, "                        Get yours at: https://www.perplexity.ai/settings/api\n\n")
+                fmt.Fprintf(os.Stderr, "Note: All ffuf options can be passed after the -u URL argument.\n")
+        }
+
+        // Parse only our known flags, ignore unknown ones for help/version
         var knownArgs []string
         var ffufArgs []string
 
+        // Check for help or version first (before requiring -u)
+        for _, arg := range os.Args[1:] {
+                if arg == "-h" || arg == "--help" || arg == "--version" {
+                        knownArgs = append(knownArgs, arg)
+                }
+        }
+
+        // If help or version requested, parse and handle immediately
+        if len(knownArgs) > 0 {
+                if err := fs.Parse(knownArgs); err != nil {
+                        return nil, err
+                }
+
+                if showHelp {
+                        fs.Usage()
+                        os.Exit(0)
+                }
+
+                if showVersion {
+                        displayBanner()
+                        fmt.Printf("ffufai version %s\n", Version)
+                        os.Exit(0)
+                }
+        }
+
+        // Normal argument parsing for actual execution
         for i := 1; i < len(os.Args); i++ {
                 arg := os.Args[i]
 
                 // Check if this is one of our flags
-                if arg == "--ffuf-path" || arg == "--max-extensions" || arg == "--model" || 
-                   arg == "--verbose" || arg == "--dry-run" || arg == "-u" || arg == "--version" {
+                if arg == "--ffuf-path" || arg == "--max-extensions" || arg == "--model" ||
+                        arg == "--verbose" || arg == "--dry-run" || arg == "-u" || arg == "--version" || 
+                        arg == "--help" || arg == "-h" {
                         knownArgs = append(knownArgs, arg)
                         // If flag takes a value, include the next argument too
                         if arg == "--ffuf-path" || arg == "--max-extensions" || arg == "--model" || arg == "-u" {
@@ -319,7 +401,14 @@ func parseArgs() (*Config, error) {
                 return nil, err
         }
 
+        // Handle help and version (shouldn't reach here due to early check, but safety)
+        if showHelp {
+                fs.Usage()
+                os.Exit(0)
+        }
+
         if showVersion {
+                displayBanner()
                 fmt.Printf("ffufai version %s\n", Version)
                 os.Exit(0)
         }
@@ -366,7 +455,7 @@ func validateURL(urlStr string) error {
         // Check if FUZZ is at the end of path for extension fuzzing
         pathParts := strings.Split(parsedURL.Path, "/")
         if len(pathParts) == 0 || !strings.Contains(pathParts[len(pathParts)-1], "FUZZ") {
-                fmt.Fprintf(os.Stderr, "Warning: FUZZ keyword is not at the end of the URL path. Extension fuzzing may not work as expected.\n")
+                fmt.Fprintf(os.Stderr, "%sWarning: FUZZ keyword is not at the end of the URL path. Extension fuzzing may not work as expected.%s\n", ColorYellow, ColorReset)
         }
 
         return nil
@@ -380,11 +469,11 @@ func executeFfuf(config *Config, extensions []string) error {
         ffufCmd = append(ffufCmd, "-e", strings.Join(extensions, ","))
 
         if config.DryRun {
-                fmt.Printf("Would execute: %s\n", strings.Join(ffufCmd, " "))
+                fmt.Printf("%sWould execute: %s%s\n", ColorGreen, strings.Join(ffufCmd, " "), ColorReset)
                 return nil
         }
 
-        fmt.Printf("Executing: %s\n", strings.Join(ffufCmd, " "))
+        fmt.Printf("%sExecuting: %s%s\n", ColorBlue, strings.Join(ffufCmd, " "), ColorReset)
 
         // Create command with context for cancellation
         ctx, cancel := context.WithCancel(context.Background())
@@ -403,7 +492,7 @@ func executeFfuf(config *Config, extensions []string) error {
 
         go func() {
                 <-sigChan
-                fmt.Fprintf(os.Stderr, "\nReceived interrupt signal, stopping ffuf...\n")
+                fmt.Fprintf(os.Stderr, "\n%sReceived interrupt signal, stopping ffuf...%s\n", ColorRed, ColorReset)
                 cancel()
         }()
 
@@ -420,24 +509,27 @@ func executeFfuf(config *Config, extensions []string) error {
 }
 
 func main() {
+        // Display banner first
+        displayBanner()
+
         // Parse command line arguments
         config, err := parseArgs()
         if err != nil {
-                fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+                fmt.Fprintf(os.Stderr, "%sError: %v%s\n\n", ColorRed, err, ColorReset)
                 flag.Usage()
                 os.Exit(1)
         }
 
         // Validate URL
         if err := validateURL(config.URL); err != nil {
-                fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+                fmt.Fprintf(os.Stderr, "%sError: %v%s\n", ColorRed, err, ColorReset)
                 os.Exit(1)
         }
 
         // Get API key
         apiKey, err := getAPIKey()
         if err != nil {
-                fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+                fmt.Fprintf(os.Stderr, "%sError: %v%s\n", ColorRed, err, ColorReset)
                 fmt.Fprintf(os.Stderr, "Please set the PERPLEXITY_API_KEY environment variable.\n")
                 fmt.Fprintf(os.Stderr, "Get your API key from: https://www.perplexity.ai/settings/api\n")
                 os.Exit(1)
@@ -451,27 +543,27 @@ func main() {
         baseURL := strings.Replace(config.URL, "FUZZ", "", 1)
 
         if config.Verbose {
-                fmt.Printf("Analyzing target: %s\n", baseURL)
+                fmt.Printf("%sAnalyzing target: %s%s\n", ColorBlue, baseURL, ColorReset)
         }
 
         headers, err := getHeaders(ctx, baseURL)
         if err != nil {
-                fmt.Fprintf(os.Stderr, "Warning: Could not fetch headers from %s: %v\n", baseURL, err)
+                fmt.Fprintf(os.Stderr, "%sWarning: Could not fetch headers from %s: %v%s\n", ColorYellow, baseURL, err, ColorReset)
                 headers = map[string]string{"Header": "Error fetching headers"}
         } else if config.Verbose {
-                fmt.Printf("Retrieved %d headers\n", len(headers))
+                fmt.Printf("%sRetrieved %d headers%s\n", ColorGreen, len(headers), ColorReset)
         }
 
         // Get AI suggestions for extensions
-        fmt.Printf("Getting AI suggestions for file extensions...\n")
+        fmt.Printf("%sGetting AI suggestions for file extensions...%s\n", ColorCyan, ColorReset)
         extensionsResp, err := getAIExtensions(ctx, config.URL, headers, apiKey, config)
         if err != nil {
-                fmt.Fprintf(os.Stderr, "Error getting AI extensions: %v\n", err)
+                fmt.Fprintf(os.Stderr, "%sError getting AI extensions: %v%s\n", ColorRed, err, ColorReset)
                 os.Exit(1)
         }
 
         if len(extensionsResp.Extensions) == 0 {
-                fmt.Printf("No extensions suggested by AI.\n")
+                fmt.Printf("%sNo extensions suggested by AI.%s\n", ColorYellow, ColorReset)
                 os.Exit(1)
         }
 
@@ -481,15 +573,16 @@ func main() {
                 extensions = extensions[:config.MaxExtensions]
         }
 
-        fmt.Printf("AI suggested extensions: %v\n", extensions)
+        fmt.Printf("%s%sAI suggested extensions: %v%s\n", ColorGreen, ColorBold, extensions, ColorReset)
 
         // Execute ffuf
         if err := executeFfuf(config, extensions); err != nil {
-                fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+                fmt.Fprintf(os.Stderr, "%sError: %v%s\n", ColorRed, err, ColorReset)
                 os.Exit(1)
         }
 
         if config.Verbose {
-                fmt.Printf("ffufai completed successfully\n")
+                fmt.Printf("%s%sffufai completed successfully%s\n", ColorGreen, ColorBold, ColorReset)
         }
 }
+  
